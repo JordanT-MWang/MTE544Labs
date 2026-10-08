@@ -1,0 +1,3 @@
+How do we know for fast the robot will spin relative to the linear and angular velcoity
+How do we dettermin the qos parameters on the real bot 
+what is the frequency of the topics puplished and read on the bot?
