@@ -38,7 +38,7 @@ class motion_executioner(Node):
         #added variable for functions#
         #starting velocity
         self.time = 0.1
-        self.v = 0.25
+        self.v = 0.5
         self.line_dist = 0
         self.line_dist_max = 5.0
         #starting angular velocity
