@@ -34,16 +34,24 @@ class motion_executioner(Node):
         
         self.type=motion_type
         
-        self.radius_=0.0
+        
         #added variable for functions#
         #starting velocity
-        self.v = 0.2
+        self.time = 0.1
+        self.v = 0.25
+        self.line_dist = 0
+        self.line_dist_max = 2.0
         #starting angular velocity
-        self.w = 0.4
+        self.w = 0.5
+        self.r_max = self.v/self.w
+        self.radius_= self.r_max
+        self.dr = 0.01
+        self.r_min = 0.15
         self.successful_init=False
         self.imu_initialized=False
         self.odom_initialized=False
         self.laser_initialized=False
+        self.sprial_in=True
         # TODO Part 3: Create the QoS profile by setting the proper parameters in (...)
         qos=QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -90,9 +98,10 @@ class motion_executioner(Node):
                             qos
                         )
         
-        self.create_timer(0.1, self.timer_callback)
+        self.create_timer(self.time, self.timer_callback)
 
-
+    
+        
     # TODO Part 5: Callback functions: complete the callback functions of the three sensors to log the proper data.
     # To also log the time you need to use the rclpy Time class, each ros msg will come with a header, and then
     # inside the header you have a stamp that has the time in seconds and nanoseconds, you should log it in nanoseconds as 
@@ -126,8 +135,10 @@ class motion_executioner(Node):
         self.odom_initialized = True
                 
     def laser_callback(self, laser_msg: LaserScan):
+        #used to seperate the values and add ; betwen the values
+        ranges_str = ";".join(str(r) for r in laser_msg.ranges)
         values = [
-            laser_msg.ranges,
+            ranges_str,
             laser_msg.angle_increment,
             Time.from_msg(laser_msg.header.stamp).nanoseconds
         ]
@@ -174,20 +185,52 @@ class motion_executioner(Node):
 
     def make_spiral_twist(self):
         msg=Twist()
-        #decrease angular velocity
-        self.w=self.w-0.01
-        #raduis will be v/w for these number be 0.4
+        #check if spiraling in. if so decrease radius of circle
+        if self.sprial_in:
+            #minus by preset sprial
+            self.radius_ -=self.dr
+            #check if radus is smaller then set min
+            if self.radius_ <= self.r_min:
+                #change direction for next loop
+                self.sprial_in = False
+        else:
+            #outward sprial
+            self.radius_ += self.dr
+            #check if radius is bigger then circle 
+            if self.radius_ >=self.r_max:
+                #set so sprial in
+                self.sprial_in = True
+
+        #set velocity and calc the angular velocity
         msg.linear.x = self.v
-        msg.angular.z = self.w
+        msg.angular.z = self.v/self.radius_
+        
         return msg
     
     def make_acc_line_twist(self):
         msg=Twist()
-        #increase velocity
-        self.v=self.v+0.01
-        #raduis will be v/w for these number be 0.4
+        #check if forward
+        if self.v >0:
+            #add distance 
+            self.line_dist += self.v*self.time
+            #check if its gone max distance
+            if self.line_dist >= self.line_dist_max:
+                    #has gone foward enough. set to backwards
+                    self.v *= -1
+                    self.line_dist = 0
+        else:
+            #add distance. v is negative here. shoot s more back
+            self.line_dist += 0.95*self.v*self.time
+        
+            #check if its gone back enough
+            if self.line_dist <= -1*self.line_dist_max:
+                # has gone back enough. set to froward
+                self.v *= -1
+                self.line_dist = 0
+
         msg.linear.x = self.v
-        msg.angular.z = self.w
+        msg.angular.z = 0.0
+        
         return msg
 
 import argparse
@@ -224,3 +267,5 @@ if __name__=="__main__":
         rclpy.spin(ME)
     except KeyboardInterrupt:
         print("Exiting")
+    
+        
