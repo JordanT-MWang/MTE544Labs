@@ -40,7 +40,7 @@ class motion_executioner(Node):
         self.time = 0.1
         self.v = 0.25
         self.line_dist = 0
-        self.line_dist_max = 2.0
+        self.line_dist_max = 5.0
         #starting angular velocity
         self.w = 0.5
         self.r_max = self.v/self.w
@@ -54,13 +54,19 @@ class motion_executioner(Node):
         self.sprial_in=True
         # TODO Part 3: Create the QoS profile by setting the proper parameters in (...)
         qos=QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
-            depth=10
+            depth=1
         )
+        qospub=QoSProfile(
+                    reliability=ReliabilityPolicy.BEST_EFFORT,
+                    durability=DurabilityPolicy.VOLATILE,
+                    history=HistoryPolicy.KEEP_LAST,
+                    depth=10
+                )
         # TODO Part 3: Create a publisher to send velocity commands by setting the proper parameters in (...)
-        self.vel_publisher=self.create_publisher(Twist,'/cmd_vel', qos)
+        self.vel_publisher=self.create_publisher(Twist,'/cmd_vel', qospub)
 
         # loggers
         self.imu_logger=Logger('imu_content_'+str(motion_types[motion_type])+'.csv', headers=["acc_x", "acc_y", "angular_z", "stamp"])
@@ -109,6 +115,7 @@ class motion_executioner(Node):
     # You can save the needed fields into a list, and pass the list to the log_values function in utilities.py
 
     def imu_callback(self, imu_msg: Imu):
+        print("test4")
         values = [
             imu_msg.linear_acceleration.x,
             imu_msg.linear_acceleration.y,
@@ -121,6 +128,7 @@ class motion_executioner(Node):
         self.imu_initialized = True
         
     def odom_callback(self, odom_msg: Odometry):
+        print("test3")
         #change the quaterion to euler
         quaternion = odom_msg.pose.pose.orientation
         th = euler_from_quaternion(quaternion)
@@ -135,6 +143,7 @@ class motion_executioner(Node):
         self.odom_initialized = True
                 
     def laser_callback(self, laser_msg: LaserScan):
+        print("test2")
         #used to seperate the values and add ; betwen the values
         ranges_str = ";".join(str(r) for r in laser_msg.ranges)
         values = [
@@ -147,7 +156,8 @@ class motion_executioner(Node):
         self.laser_initialized = True
                 
     def timer_callback(self):
-        
+        print("test1")
+        print
         if self.odom_initialized and self.laser_initialized and self.imu_initialized:
             self.successful_init=True
             
@@ -209,24 +219,11 @@ class motion_executioner(Node):
     
     def make_acc_line_twist(self):
         msg=Twist()
-        #check if forward
-        if self.v >0:
-            #add distance 
-            self.line_dist += self.v*self.time
-            #check if its gone max distance
-            if self.line_dist >= self.line_dist_max:
-                    #has gone foward enough. set to backwards
-                    self.v *= -1
-                    self.line_dist = 0
-        else:
-            #add distance. v is negative here. shoot s more back
-            self.line_dist += 0.95*self.v*self.time
+        #add distance
         
-            #check if its gone back enough
-            if self.line_dist <= -1*self.line_dist_max:
-                # has gone back enough. set to froward
-                self.v *= -1
-                self.line_dist = 0
+        self.line_dist += self.v*self.time
+        #check if its gone max distance
+        
 
         msg.linear.x = self.v
         msg.angular.z = 0.0
