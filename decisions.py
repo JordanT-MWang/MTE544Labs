@@ -1,130 +1,163 @@
-# Imports
 
-
+import argparse
 import sys
 
-from utilities import euler_from_quaternion, calculate_angular_error, calculate_linear_error
-from pid import PID_ctrl
-
-from rclpy import init, spin, spin_once
+from rclpy import init, ok, shutdown
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 from geometry_msgs.msg import Twist
 
-from rclpy.qos import QoSProfile
-from nav_msgs.msg import Odometry as odom
-
+from utilities import calculate_linear_error
 from localization import localization, rawSensor
-
 from planner import TRAJECTORY_PLANNER, POINT_PLANNER, planner
 from controller import controller, trajectoryController
 
-# You may add any other imports you may need/want to use below
-# import ...
+
+GOAL_TOLERANCE_M = 0.10  # Stop when within 10 cm of the goal
+POINT_GOAL = [-0.5, -0.5]  # About 1.1 m from the last logged simulation pose
 
 
 class decision_maker(Node):
-    
-    def __init__(self, publisher_msg, publishing_topic, qos_publisher, goalPoint, rate=10, motion_type=POINT_PLANNER):
-
+    def __init__(self, publisher_msg, publishing_topic, qos_publisher,
+                 goalPoint, rate=10, motion_type=POINT_PLANNER, robot="tb3"):
         super().__init__("decision_maker")
 
-        #TODO Part 4: Create a publisher for the topic responsible for robot's motion
-        self.publisher=... 
+        # Part 4: Publish linear and angular velocities on /cmd_vel.
+        self.publisher = self.create_publisher(
+            publisher_msg, publishing_topic, qos_publisher
+        )
 
-        publishing_period=1/rate
-        
-        # Instantiate the controller
-        # TODO Part 5: Tune your parameters here
-    
+        # Select the appropriate controller and planner.
         if motion_type == POINT_PLANNER:
-            self.controller=controller(klp=0.2, klv=0.5, kap=0.8, kav=0.6)
-            self.planner=planner(POINT_PLANNER)    
-    
-    
-        elif motion_type==TRAJECTORY_PLANNER:
-            self.controller=trajectoryController(klp=0.2, klv=0.5, kap=0.8, kav=0.6)
-            self.planner=planner(TRAJECTORY_PLANNER)
-
+            self.controller = controller(klp=0.2, klv=0.5, kap=0.8, kav=0.6,
+                                         robot=robot)
+            self.planner = planner(POINT_PLANNER)
+        elif motion_type == TRAJECTORY_PLANNER:
+            self.controller = trajectoryController(
+                klp=0.2, klv=0.5, kap=0.8, kav=0.6, robot=robot
+            )
+            self.planner = planner(TRAJECTORY_PLANNER)
         else:
-            print("Error! you don't have this planner", file=sys.stderr)
+            raise ValueError("Unknown planner type")
 
+        # Part 3: Read the robot position from /odom via the localization node.
+        self.localizer = localization(rawSensor)
+        self.goal = self.planner.plan(goalPoint)
 
-        # Instantiate the localization, use rawSensor for now  
-        self.localizer=localization(rawSensor)
+        if self.goal is None or (isinstance(self.goal, list) and not self.goal):
+            raise ValueError(
+                "No goal returned by planner.py. "
+                "Complete trajectory_planner() before using trajectory mode."
+            )
 
-        # Instantiate the planner
-        # NOTE: goalPoint is used only for the pointPlanner
-        self.goal=self.planner.plan(goalPoint)
-
-        self.create_timer(publishing_period, self.timerCallback)
-
+        self.goal_reached = False
+        self.timer = self.create_timer(1.0 / rate, self.timerCallback)
 
     def timerCallback(self):
-        
-        # TODO Part 3: Run the localization node
-        ...    # Remember that this file is already running the decision_maker node.
-
-        if self.localizer.getPose()  is  None:
-            print("waiting for odom msgs ....")
+        # Both ROS nodes are handled by the same executor in main().
+        pose = self.localizer.getPose()
+        if pose is None:
+            self.get_logger().info("Waiting for /odom messages...", once=True)
             return
 
-        vel_msg=Twist()
-        
-        # TODO Part 3: Check if you reached the goal
-        if type(self.goal) == list:
-            reached_goal=...
-        else: 
-            reached_goal=...
-        
+        # Point planner returns a tuple (x, y); trajectory planner returns
+        # a list of [x, y] points, with the final point as the destination.
+        final_goal = self.goal[-1] if isinstance(self.goal, list) else self.goal
 
-        if reached_goal:
-            print("reached goal")
-            self.publisher.publish(vel_msg)
-            
-            self.controller.PID_angular.logger.save_log()
-            self.controller.PID_linear.logger.save_log()
-            
-            #TODO Part 3: exit the spin
-            ... 
-        
-        velocity, yaw_rate = self.controller.vel_request(self.localizer.getPose(), self.goal, True)
+        if calculate_linear_error(pose, final_goal) < GOAL_TOLERANCE_M:
+            # Record the final errors without requesting motion.
+            self.controller.vel_request(pose, self.goal, False)
+            self.goal_reached = True
+            self.publisher.publish(Twist())  # Stop the robot.
+            self.get_logger().info("Reached goal")
+            self.timer.cancel()
+            return
 
-        #TODO Part 4: Publish the velocity to move the robot
-        ... 
+        # Part 4: Calculate the commanded velocities from the controller.
+        velocity, yaw_rate = self.controller.vel_request(pose, self.goal, True)
 
-import argparse
+        # Publish /cmd_vel; limits are handled in controller.py.
+        vel_msg = Twist()
+        vel_msg.linear.x = float(velocity)
+        vel_msg.angular.z = float(yaw_rate)
+        self.publisher.publish(vel_msg)
 
 
 def main(args=None):
-    
+    if args is None:
+        parser = argparse.ArgumentParser(description="MTE 544 Lab 2")
+        parser.add_argument("--motion", choices=["point", "trajectory"],
+                            default="point")
+        parser.add_argument("--robot", choices=["tb3", "tb4"], default="tb3",
+                            help="Select velocity limits (default: tb3 simulation)")
+        parser.add_argument("--goal", type=float, nargs=2, metavar=("X", "Y"),
+                            default=POINT_GOAL,
+                            help="Point goal in odometry coordinates, in metres")
+        args = parser.parse_args()
+
     init()
 
-    # TODO Part 3: You migh need to change the QoS profile based on whether you're using the real robot or in simulation.
-    # Remember to define your QoS profile based on the information available in "ros2 topic info /odom --verbose" as explained in Tutorial 3
-    
-    odom_qos=QoSProfile(reliability=2, durability=2, history=1, depth=10)
-    
+    cmd_vel_qos = QoSProfile(
+        reliability=ReliabilityPolicy.RELIABLE,
+        durability=DurabilityPolicy.VOLATILE,
+        history=HistoryPolicy.KEEP_LAST,
+        depth=10
+    )
 
-    # TODO Part 4: instantiate the decision_maker with the proper parameters for moving the robot
-    if args.motion.lower() == "point":
-        DM=decision_maker(...)
-    elif args.motion.lower() == "trajectory":
-        DM=decision_maker(...)
+    if args.motion == "point":
+        motion_type = POINT_PLANNER
+    elif args.motion == "trajectory":
+        motion_type = TRAJECTORY_PLANNER
     else:
-        print("invalid motion type", file=sys.stderr)        
-    
-    
-    
+        print("Invalid motion type")
+        shutdown()
+        return
+
+    # Create decision-maker and localization
+    dm = decision_maker(
+        Twist,
+        "/cmd_vel",
+        cmd_vel_qos,
+        goalPoint=args.goal,
+        motion_type=motion_type,
+        robot=args.robot
+    )
+
+    # Run both ROS 2 nodes
+    executor = SingleThreadedExecutor()
+    executor.add_node(dm)
+    executor.add_node(dm.localizer)
+
+    print("Decision-maker started!")
+    print("Robot:", args.robot)
+    print("Goal:", dm.goal)
+    print("Waiting for robot position...")
+
     try:
-        spin(DM)
-    except SystemExit:
-        print(f"reached there successfully {DM.localizer.pose}")
+        while ok() and not dm.goal_reached:
+            executor.spin_once(timeout_sec=0.1)
+
+        if dm.goal_reached:
+            print("Robot reached its target!")
+
+    except KeyboardInterrupt:
+        print("Controller stopped.")
+
+    finally:
+        if ok():
+            dm.publisher.publish(Twist())
+
+        dm.controller.PID_linear.logger.save_log()
+        dm.controller.PID_angular.logger.save_log()
+
+        executor.shutdown()
+        dm.localizer.destroy_node()
+        dm.destroy_node()
+
+        if ok():
+            shutdown()
 
 
-if __name__=="__main__":
-
-    argParser=argparse.ArgumentParser(description="point or trajectory") 
-    argParser.add_argument("--motion", type=str, default="point")
-    args = argParser.parse_args()
-
-    main(args)
+if __name__ == "__main__":
+    main()

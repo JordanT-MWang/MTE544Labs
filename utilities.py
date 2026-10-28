@@ -84,38 +84,51 @@ class FileReader:
     
 
 # TODO Part 3: Implement the conversion from Quaternion to Euler Angles
+# Part 3: Convert quaternion to yaw angle
 def euler_from_quaternion(quat):
-    """
-    Convert quaternion (w in last place) to euler roll, pitch, yaw.
-    quat = [x, y, z, w]
-    """
+    x, y, z, w = quat
 
-    # just unpack yaw
+    siny_cosp = 2.0 * (w * z + x * y)
+    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+
+    yaw = atan2(siny_cosp, cosy_cosp)
+
     return yaw
 
-
-#TODO Part 4: Implement the calculation of the linear error
+# Part 4: Calculate distance to target
 def calculate_linear_error(current_pose, goal_pose):
-        
-    # Compute the linear error in x and y
-    # Remember that current_pose = [x,y, theta, time stamp] and goal_pose = [x,y]
-    # Remember to use the Euclidean distance to calculate the error.
-    error_linear= ...
+
+    x, y = current_pose[0], current_pose[1]
+    goal_x, goal_y = goal_pose[0], goal_pose[1]
+
+    # Difference between target and current position
+    dx = goal_x - x
+    dy = goal_y - y
+
+    # Euclidean distance
+    error_linear = sqrt(dx**2 + dy**2)
 
     return error_linear
 
-#TODO Part 4: Implement the calculation of the angular error
+
+# Part 4: Calculate angle needed to face target
 def calculate_angular_error(current_pose, goal_pose):
 
-    # Compute the linear error in x and y
-    # Remember that current_pose = [x,y, theta, time stamp] and goal_pose = [x,y]
-    # Use atan2 to find the desired orientation
-    # Remember that this function returns the difference in orientation between where the robot currently faces and where it should face to reach the goal
+    x, y, theta = current_pose[0:3]
+    goal_x, goal_y = goal_pose[0:2]
 
-    error_angular = ...
+    # Find the direction toward the target
+    desired_theta = atan2(goal_y - y, goal_x - x)
 
-    # Remember to handle the cases where the angular error might exceed the range [-π, π]
+    # Difference between desired and current heading
+    error_angular = desired_theta - theta
 
-    ...
-    
+    # Keep error between -pi and pi
+    while error_angular > M_PI:
+        error_angular -= 2 * M_PI
+
+    while error_angular < -M_PI:
+        error_angular += 2 * M_PI
+
     return error_angular
+
