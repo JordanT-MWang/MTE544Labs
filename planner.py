@@ -1,13 +1,14 @@
+import numpy as np
 # Type of planner
 POINT_PLANNER=0; TRAJECTORY_PLANNER=1
 
 
 
 class planner:
-    def __init__(self, type_):
+    def __init__(self, type_, trajectory="parabola"):
 
         self.type=type_
-
+        self.trajectory = trajectory
     
     def plan(self, goalPoint=[-1.0, -1.0]):
         
@@ -25,7 +26,15 @@ class planner:
 
     # TODO Part 6: Implement the trajectories here
     def trajectory_planner(self):
-        pass
-        # the return should be a list of trajectory points: [ [x1,y1], ..., [xn,yn]]
-        # return 
+        if self.trajectory == "parabola":
+            xs = np.linspace(0.0, 1, 60)
+            ys = xs ** 2
+        elif self.trajectory == "sigmoid":
+            xs = np.linspace(0.0, 2.5, 50)
+            ys = 2.0 / (1.0 + np.exp(-2.0 * xs)) - 1.0
+        else:
+            raise ValueError("trajectory must be 'parabola' or 'sigmoid'")
+
+        # list of [x, y] lists (not a numpy array), as decisions.py expects
+        return [[float(x), float(y)] for x, y in zip(xs, ys)]
 

@@ -11,7 +11,7 @@ PID = 3  # Proportional + Integral + Derivative
 class PID_ctrl:
 
     def __init__(self, type_, kp=1.2, kv=0.8, ki=0.2,
-                 history_length=3, filename_="errors.csv"):
+                 history_length=10, filename_="errors.csv"):
 
         # Store controller settings and recent errors
         self.history_length = history_length
@@ -63,7 +63,9 @@ class PID_ctrl:
             dt_avg += dt
 
             # TODO Part 5: Calculate the error derivative.
-            # error_dot += ...
+            de = self.history[i][0] - self.history[i - 1][0]
+            if dt > 0:
+                error_dot += de / dt
 
         error_dot /= len(self.history)
         dt_avg /= len(self.history)
@@ -72,8 +74,8 @@ class PID_ctrl:
         sum_ = 0
         for hist in self.history:
             # TODO Part 5: Add errors for the integral calculation.
-            # sum_ += ...
-            pass
+            sum_ += hist[0]
+            
 
         error_int = sum_ * dt_avg
 
@@ -91,10 +93,12 @@ class PID_ctrl:
 
         # TODO Part 5: Implement the remaining controllers.
         elif self.type == PD:
-            pass
+            return self.kp * latest_error + self.kv * error_dot
+
 
         elif self.type == PI:
-            pass
+            return self.kp * latest_error + self.ki * error_int
+
 
         elif self.type == PID:
-            pass
+             return self.kp * latest_error + self.kv * error_dot + self.ki * error_int
