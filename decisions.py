@@ -8,7 +8,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 from geometry_msgs.msg import Twist
 
-from utilities import calculate_linear_error
+from utilities import calculate_linear_error, Logger
 from localization import localization, rawSensor
 from planner import TRAJECTORY_PLANNER, POINT_PLANNER, planner
 from controller import controller, trajectoryController
@@ -30,12 +30,15 @@ class decision_maker(Node):
 
         # Select the appropriate controller and planner.
         if motion_type == POINT_PLANNER:
-            self.controller = controller(klp=0.2, klv=0.5, kap=0.8, kav=0.6,
+            self.controller = controller(klp=0.8, klv=0.2, kli=0.0,
+                                         kap=0.8, kav=0.2, kai=0.0,
                                          robot=robot)
             self.planner = planner(POINT_PLANNER)
         elif motion_type == TRAJECTORY_PLANNER:
             self.controller = trajectoryController(
-                klp=0.2, klv=0.5, kap=0.8, kav=0.6, robot=robot
+                klp=0.15, klv=0.0, kli=0.0,
+                kap=1.1, kav=0.3, kai=0.0,
+                robot=robot
             )
             self.planner = planner(TRAJECTORY_PLANNER)
         else:
@@ -53,6 +56,11 @@ class decision_maker(Node):
 
         self.goal_reached = False
         self.timer = self.create_timer(1.0 / rate, self.timerCallback)
+        #ideal path
+        ideal_logger = Logger("ideal_path.csv", ["x", "y", "time stamp"])
+        pts = self.goal if isinstance(self.goal, list) else [self.goal]
+        for i, p in enumerate(pts):
+            ideal_logger.log_values([p[0],p[1],i])
 
     def timerCallback(self):
         # Both ROS nodes are handled by the same executor in main().

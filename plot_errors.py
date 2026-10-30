@@ -4,7 +4,7 @@ from utilities import FileReader
 
 
 
-def plot_errors(filename):
+def plot_errors(filename, ideal = None):
     
     headers, values=FileReader(filename).read_file()
     
@@ -21,7 +21,15 @@ def plot_errors(filename):
 
 
     axes[0].plot([lin[0] for lin in values], [lin[1] for lin in values])
+    axes[0].set_aspect("equal", adjustable="datalim")
     axes[0].set_title("state space")
+    if ideal:
+        _, ivals = FileReader(ideal).read_file()
+        ix = [p[0] for p in ivals]
+        iy = [p[1] for p in ivals]
+        style = "rx" if len(ix) == 1 else "r--"
+        axes[0].plot(ix, iy, style, label="ideal")
+        axes[0].legend()
     axes[0].grid()
 
     
@@ -31,6 +39,7 @@ def plot_errors(filename):
 
     axes[1].legend()
     axes[1].grid()
+
 
     plt.show()
     
@@ -46,14 +55,14 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='Process some files.')
     parser.add_argument('--files', nargs='+', required=True, help='List of files to process')
-    
+    parser.add_argument('--ideal', default=None, help='planned path csv')
     args = parser.parse_args()
-    
+
     print("plotting the files", args.files)
 
-    filenames=args.files
+    filenames = args.files
     for filename in filenames:
-        plot_errors(filename)
+        plot_errors(filename, args.ideal)
 
 
 
