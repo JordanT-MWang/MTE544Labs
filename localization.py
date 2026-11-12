@@ -104,6 +104,11 @@ class localization(Node):
         stamp = (float(odom_msg.header.stamp.sec) +
                  float(odom_msg.header.stamp.nanosec) * 1e-9)
 
+        # Do not integrate duplicate/out-of-order samples as new motion.
+        # Restart this node when intentionally resetting the simulation clock.
+        if self.last_stamp is not None and stamp <= self.last_stamp:
+            return
+
         if not self.have_initial_state:
             # Keep the estimated trajectory in the same initial odom frame.
             # Thereafter, x/y are obtained ONLY by EKF motion integration.
@@ -115,7 +120,7 @@ class localization(Node):
             self.have_initial_state = True
         else:
             # Sensor timestamp difference supplies the actual integration dt.
-            # Discard a backward clock jump or an unusually long pause.
+            # Bound the integration interval after an unusually long pause.
             delta_t = stamp - self.last_stamp
             self.kf.dt = (delta_t if 0.0 < delta_t <= 1.0
                           else self.nominal_dt)

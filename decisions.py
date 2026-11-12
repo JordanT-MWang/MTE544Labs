@@ -13,7 +13,8 @@ import sys
 
 import rclpy
 from rclpy.node import Node
-from rclpy.executors import SingleThreadedExecutor
+from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
+from rclpy.utilities import remove_ros_args
 from geometry_msgs.msg import Twist
 
 from utilities import calculate_linear_error
@@ -100,6 +101,8 @@ class decision_maker(Node):
 
 
 def main(args=None):
+    if args is None:
+        args = parse_args()
     rclpy.init()
     if args.motion == "point":
         motion = POINT_PLANNER
@@ -116,22 +119,27 @@ def main(args=None):
     executor.add_node(dm.localizer)
     try:
         executor.spin()
-    except (KeyboardInterrupt, SystemExit):
+    except (KeyboardInterrupt, SystemExit, ExternalShutdownException):
         pass
     finally:
-        # Stop robot even when the user presses Ctrl+C.
-        dm.publisher.publish(Twist())
-        executor.remove_node(dm.localizer)
-        executor.remove_node(dm)
+        # A ROS signal handler may already have invalidated the context.
+        # Publish a stop while communications are still available, then clean up.
+        if rclpy.ok():
+            dm.publisher.publish(Twist())
+        executor.shutdown()
         dm.localizer.destroy_node()
         dm.destroy_node()
-        executor.shutdown()
         if rclpy.ok():
             rclpy.shutdown()
 
 
-if __name__ == "__main__":
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Lab 3 EKF motion demo")
     parser.add_argument("--motion", choices=["point", "trajectory", "spiral"],
                         default="spiral")
-    main(parser.parse_args())
+    # Leave ROS parameters/remappings for rclpy.init(), including use_sim_time.
+    return parser.parse_args(remove_ros_args(args=argv)[1:])
+
+
+if __name__ == "__main__":
+    main()

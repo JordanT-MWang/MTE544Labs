@@ -1,0 +1,4 @@
+# ROS modules are installed through your ROS 2 distribution, not pip.
+# See README.md for the Ubuntu/ROS setup commands.
+numpy
+matplotlib
