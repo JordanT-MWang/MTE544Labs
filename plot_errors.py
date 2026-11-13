@@ -50,7 +50,7 @@ def plot_errors(filename):
     theta_0 = values[start_idx][idx["kf_theta"]]
     ideal_x, ideal_y = compute_ideal_spiral(
     time_list, odom_x, odom_y, theta_0,
-    v_step=0.01, v_max=1.0, omega_cmd=1.0, rate=10.0
+    v_step=0.01, v_max=1, omega_cmd=1.0, rate=10.0
 )
     fig, axes = plt.subplots(4, 1, figsize=(12, 12))
 
