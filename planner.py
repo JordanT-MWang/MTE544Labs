@@ -21,7 +21,7 @@ class planner:
 
 
     def point_planner(self):
-        x=-1.0; y=-1.0; theta=0.0
+        x=1.0; y=1.0; theta=0.0
         return x, y, theta
 
 

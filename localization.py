@@ -71,7 +71,7 @@ class localization(Node):
         # Lab 3 suggests starting with Q=0.5*I_6 and R=0.5*I_4.
         # Change these for the four experimental Q/R combinations.
         Q = 0.5 * np.eye(6)   # process/model uncertainty
-        R = np.diag([0.5,0.5,0.4,0.4]) #$mddemendfsft uncertainty
+        R = 0.5 * np.eye(4)#np.diag([0.4,0.4,0.5,0.5]) #$mddemendfsft uncertainty
         P = 0.5 * np.eye(6)   # initial state-estimation uncertainty
         self.kf = kalman_filter(P, Q, R, x, dt)
 
