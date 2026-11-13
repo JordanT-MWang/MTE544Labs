@@ -1,0 +1,19 @@
+run sim:
+export TURTLEBOT3_MODEL=burger 
+ros2 launch turtlebot3_gazebo turtlebot3_house.launch.py
+
+Control bot:
+ros2 run turtlebot3_teleop teleop_keyboard
+or 
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+record data:
+python3 localization.py
+
+plot path 
+python3 plot_ekf.py
+python3 plot_errors.py
+
+reset odom
+ros2 service call /reset_pose irobot_create_msgs/srv/ResetPose
+

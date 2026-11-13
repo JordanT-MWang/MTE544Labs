@@ -10,7 +10,6 @@ State (6): [x, y, theta, omega, v, a]
 Measurements (4): [v_odom, omega_odom, ax_imu, ay_imu]
     ax_imu = a           (forward / tangential acceleration)
     ay_imu = omega * v   (lateral / centripetal acceleration)
-
 Assumes planar movement on a level surface, with odometry and IMU axes
 aligned to the robot's base frame. Position is estimated by integration;
 position is NOT measured directly in the correction step.
